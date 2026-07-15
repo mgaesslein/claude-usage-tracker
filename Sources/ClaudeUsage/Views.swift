@@ -4,9 +4,9 @@ struct MenuBarLabel: View {
     @ObservedObject var store: UsageStore
 
     var body: some View {
-        Text(store.usages.map { usage in
-            let initial = String(usage.label.prefix(1))
-            if let pct = usage.fiveHour.utilization {
+        Text(store.accounts.map { account in
+            let initial = String(account.label.prefix(1))
+            if let pct = store.statuses[account.id]?.windows.first?.utilization {
                 return "\(initial):\(pct)%"
             } else {
                 return "\(initial):–"
@@ -17,15 +17,22 @@ struct MenuBarLabel: View {
 
 struct UsageMenuView: View {
     @ObservedObject var store: UsageStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Claude Usage")
+            Text("AI Usage")
                 .font(.headline)
 
-            ForEach(Array(store.usages.enumerated()), id: \.element.id) { index, usage in
-                AccountRow(usage: usage)
-                if index < store.usages.count - 1 {
+            if store.accounts.isEmpty {
+                Text("No accounts configured yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
+                AccountRow(account: account, status: store.statuses[account.id] ?? AccountStatus())
+                if index < store.accounts.count - 1 {
                     Divider()
                 }
             }
@@ -44,6 +51,11 @@ struct UsageMenuView: View {
                 }
                 .disabled(store.isRefreshing)
 
+                Button("Accounts…") {
+                    openWindow(id: "accounts")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+
                 Spacer()
 
                 Button("Quit") {
@@ -57,40 +69,48 @@ struct UsageMenuView: View {
 }
 
 struct AccountRow: View {
-    let usage: AccountUsage
+    let account: AccountConfig
+    let status: AccountStatus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(usage.label).bold()
+                Text(account.label).bold()
+                Text(account.provider.displayName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Spacer()
-                if !usage.subscriptionType.isEmpty {
-                    Text(usage.subscriptionType.capitalized)
+                if !status.plan.isEmpty {
+                    Text(status.plan.capitalized)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-            if !usage.email.isEmpty {
-                Text(usage.email)
+            if !status.email.isEmpty {
+                Text(status.email)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
-            if let error = usage.error {
+            if let error = status.error {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+            } else if status.windows.isEmpty {
+                Text("Loading…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
-                UsageBar(title: "5h", window: usage.fiveHour)
-                UsageBar(title: "7d", window: usage.sevenDay)
+                ForEach(status.windows) { window in
+                    UsageBar(window: window)
+                }
             }
         }
     }
 }
 
 struct UsageBar: View {
-    let title: String
-    let window: UsageWindow
+    let window: UsageWindowInfo
 
     private var color: Color {
         guard let pct = window.utilization else { return .gray }
@@ -102,9 +122,9 @@ struct UsageBar: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text(title)
+                Text(window.title)
                     .font(.caption)
-                    .frame(width: 22, alignment: .leading)
+                    .frame(width: 36, alignment: .leading)
 
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -112,7 +132,7 @@ struct UsageBar: View {
                             .fill(Color.gray.opacity(0.25))
                         RoundedRectangle(cornerRadius: 3)
                             .fill(color)
-                            .frame(width: geo.size.width * CGFloat(window.utilization ?? 0) / 100)
+                            .frame(width: geo.size.width * CGFloat(min(window.utilization ?? 0, 100)) / 100)
                     }
                 }
                 .frame(height: 8)
@@ -126,7 +146,7 @@ struct UsageBar: View {
                 Text("resets \(relativeString(resetsAt))")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 28)
+                    .padding(.leading, 42)
             }
         }
     }

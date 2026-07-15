@@ -2,12 +2,24 @@ import Foundation
 
 @MainActor
 final class UsageStore: ObservableObject {
-    @Published var usages: [AccountUsage]
+    @Published var accounts: [AccountConfig] {
+        didSet {
+            guard accounts != oldValue else { return }
+            AccountStorage.save(accounts)
+            statuses = statuses.filter { id, _ in accounts.contains { $0.id == id } }
+            if accounts.count != oldValue.count {
+                Task { await refreshAll() }
+            }
+        }
+    }
+    @Published var statuses: [UUID: AccountStatus] = [:]
     @Published var isRefreshing = false
     private var timer: Timer?
 
     init() {
-        usages = accounts.map { AccountUsage(id: $0.label, label: $0.label) }
+        let accounts = AccountStorage.load() ?? AccountStorage.detectDefaults()
+        self.accounts = accounts
+        AccountStorage.save(accounts)
         Task { await refreshAll() }
         timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             Task { @MainActor in await self?.refreshAll() }
@@ -15,41 +27,41 @@ final class UsageStore: ObservableObject {
     }
 
     func refreshAll() async {
+        guard !isRefreshing else { return }
         isRefreshing = true
-        for (index, config) in accounts.enumerated() {
-            await refresh(index: index, config: config)
+        await withTaskGroup(of: (UUID, AccountStatus).self) { group in
+            for account in accounts {
+                let previous = statuses[account.id] ?? AccountStatus()
+                group.addTask {
+                    var status = previous
+                    switch await fetchUsage(for: account) {
+                    case .success(let usage):
+                        status.email = usage.email ?? ""
+                        status.plan = usage.plan ?? ""
+                        status.windows = usage.windows
+                        status.error = nil
+                        status.lastUpdated = Date()
+                    case .failure(let error):
+                        status.error = error.message
+                    }
+                    return (account.id, status)
+                }
+            }
+            for await (id, status) in group {
+                if accounts.contains(where: { $0.id == id }) {
+                    statuses[id] = status
+                }
+            }
         }
         isRefreshing = false
     }
 
-    private func refresh(index: Int, config: AccountConfig) async {
-        let configDir = config.configDir
-        let service = keychainServiceName(for: configDir)
+    func addAccount() {
+        let provider = Provider.claude
+        accounts.append(AccountConfig(label: "New account", provider: provider, path: provider.defaultPath))
+    }
 
-        let (token, subscriptionType, email) = await Task.detached {
-            (
-                readAccessToken(service: service),
-                readSubscriptionType(service: service),
-                readEmail(configDir: configDir)
-            )
-        }.value
-
-        usages[index].email = email ?? ""
-        usages[index].subscriptionType = subscriptionType ?? ""
-
-        guard let token else {
-            usages[index].error = "No credentials found for \(config.label)"
-            return
-        }
-
-        switch await fetchUsage(token: token) {
-        case .success(let result):
-            usages[index].fiveHour = result.five
-            usages[index].sevenDay = result.seven
-            usages[index].error = nil
-            usages[index].lastUpdated = Date()
-        case .failure(let error):
-            usages[index].error = error.message
-        }
+    func removeAccount(_ id: UUID) {
+        accounts.removeAll { $0.id == id }
     }
 }

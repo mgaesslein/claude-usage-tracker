@@ -1,32 +1,37 @@
-# Claude Usage Tracker
+# AI Usage Tracker
 
-A tiny macOS menu bar app that shows Claude Code usage (5-hour and 7-day windows) for multiple accounts.
+A tiny macOS menu bar app that shows usage/quota for AI coding tools — Claude Code,
+OpenAI Codex, Cursor, and Gemini CLI — across multiple accounts.
 
 ![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue)
 
-## How it works
+The menu bar shows one entry per account, e.g. `W:42% P:7% C:5%` (first letter of the
+account label plus the primary usage window). Clicking it opens a panel with progress
+bars per usage window, reset times, and plan info. Accounts are managed in a settings
+window ("Accounts…") — add, remove, rename, or point them at custom config paths.
 
-Claude Code stores each login's OAuth token in the macOS keychain under
-`Claude Code-credentials-<sha256(CLAUDE_CONFIG_DIR) prefix>`. The app reads those
-tokens (no credentials are stored in this repo or in the app) and queries the
-`https://api.anthropic.com/api/oauth/usage` endpoint every 5 minutes.
+On first launch the app auto-detects which tools are installed and adds an account
+for each (including one per `~/.claude-*` config dir for multi-account Claude setups).
 
-The menu bar shows one entry per account, e.g. `W:42% P:7%` (first letter of the
-account label plus the 5-hour utilization). Clicking it opens a panel with
-progress bars for both the 5-hour and 7-day windows, reset times, and the
-subscription type per account.
+## Supported providers
 
-## Setup
+| Provider | Credentials read from | Usage source |
+|---|---|---|
+| **Claude Code** | macOS keychain (`Claude Code-credentials[-<sha256(configDir) prefix>]`) | `api.anthropic.com/api/oauth/usage` — 5h and 7d windows |
+| **Codex** | `~/.codex/auth.json` (`CODEX_HOME`) | `chatgpt.com/backend-api/wham/usage` — same data as the CLI's `/status` |
+| **Cursor** | `state.vscdb` in Cursor's globalStorage (key `cursorAuth/accessToken`) | `cursor.com/api/usage-summary` — plan total and API usage per billing cycle |
+| **Gemini CLI** | `~/.gemini/oauth_creds.json` | `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota` — per-model quota buckets |
 
-Edit the account list in `Sources/ClaudeUsage/UsageData.swift` to match your
-`CLAUDE_CONFIG_DIR` setup:
+Credentials never leave your machine except to each tool's own usage API. Nothing is
+stored by this app, and no credentials live in this repo.
 
-```swift
-let accounts: [AccountConfig] = [
-    AccountConfig(label: "Work", configDir: NSHomeDirectory() + "/.claude-work"),
-    AccountConfig(label: "Personal", configDir: NSHomeDirectory() + "/.claude-personal"),
-]
-```
+Notes:
+- Each tool must be signed in already; this app never performs a login itself.
+- Gemini access tokens expire hourly. The app can refresh them only if you export
+  `GEMINI_OAUTH_CLIENT_ID` / `GEMINI_OAUTH_CLIENT_SECRET` (the Gemini CLI's public
+  installed-app OAuth client, found in its source); otherwise just run `gemini`
+  occasionally to keep the token fresh.
+- On first refresh, macOS may ask to allow keychain access for the Claude Code items.
 
 ## Build
 
@@ -36,6 +41,19 @@ open ClaudeUsage.app
 ```
 
 Requires Xcode command line tools (Swift 5.9+).
+
+## Adding a provider
+
+Providers live in `Sources/ClaudeUsage/*Provider.swift`. Each one is an enum with a
+single entry point:
+
+```swift
+static func fetch(path: String) async -> Result<FetchedUsage, UsageFetchError>
+```
+
+Add a case to `Provider` in `Models.swift` (display name, default path, path hint),
+wire it up in `fetchUsage(for:)` in `ProviderCommon.swift`, and return whatever
+usage windows make sense for that tool.
 
 ## License
 

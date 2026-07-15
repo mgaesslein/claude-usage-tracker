@@ -11,5 +11,10 @@ struct ClaudeUsageApp: App {
             MenuBarLabel(store: store)
         }
         .menuBarExtraStyle(.window)
+
+        Window("Accounts", id: "accounts") {
+            SettingsView(store: store)
+        }
+        .windowResizability(.contentSize)
     }
 }
