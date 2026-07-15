@@ -36,3 +36,7 @@ open ClaudeUsage.app
 ```
 
 Requires Xcode command line tools (Swift 5.9+).
+
+## License
+
+[MIT](LICENSE)
