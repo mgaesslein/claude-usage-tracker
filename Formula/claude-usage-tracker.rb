@@ -19,14 +19,23 @@ class ClaudeUsageTracker < Formula
     system "codesign", "--force", "--deep", "--sign", "-", prefix/"ClaudeUsage.app"
   end
 
+  # Runs unsandboxed (unlike `install`), so it's the right place to place the
+  # built app outside the Homebrew prefix.
+  def post_install
+    installed_app = prefix/"ClaudeUsage.app"
+    target = Pathname.new("/Applications/ClaudeUsage.app")
+    target.rmtree if target.exist?
+    FileUtils.cp_r installed_app, target
+  end
+
   def caveats
     <<~EOS
-      ClaudeUsage.app was built to:
-        #{opt_prefix}/ClaudeUsage.app
-
-      Copy it to your Applications folder and launch it:
-        cp -r #{opt_prefix}/ClaudeUsage.app /Applications/
+      ClaudeUsage.app was installed to /Applications. Launch it with:
         open /Applications/ClaudeUsage.app
+
+      `brew uninstall` removes the Homebrew-managed copy but not the one in
+      /Applications — remove that yourself with:
+        rm -rf /Applications/ClaudeUsage.app
     EOS
   end
 

@@ -40,9 +40,10 @@ Notes:
 ```sh
 brew tap mgaesslein/claude-usage-tracker https://github.com/mgaesslein/claude-usage-tracker
 brew install --build-from-source claude-usage-tracker
-cp -r $(brew --prefix)/opt/claude-usage-tracker/ClaudeUsage.app /Applications/
 open /Applications/ClaudeUsage.app
 ```
+
+The formula builds the app and installs it straight into `/Applications`.
 
 Use `brew install --HEAD --build-from-source claude-usage-tracker` to track `main` instead
 of the pinned release commit.
