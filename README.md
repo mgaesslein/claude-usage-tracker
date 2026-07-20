@@ -33,7 +33,21 @@ Notes:
   occasionally to keep the token fresh.
 - On first refresh, macOS may ask to allow keychain access for the Claude Code items.
 
-## Build
+## Install
+
+### Homebrew
+
+```sh
+brew tap mgaesslein/claude-usage-tracker https://github.com/mgaesslein/claude-usage-tracker
+brew install --build-from-source claude-usage-tracker
+cp -r $(brew --prefix)/opt/claude-usage-tracker/ClaudeUsage.app /Applications/
+open /Applications/ClaudeUsage.app
+```
+
+Use `brew install --HEAD --build-from-source claude-usage-tracker` to track `main` instead
+of the pinned release commit.
+
+### From source
 
 ```sh
 ./build_app.sh
