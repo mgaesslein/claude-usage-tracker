@@ -17,7 +17,7 @@ struct MenuBarLabel: View {
 
 struct UsageMenuView: View {
     @ObservedObject var store: UsageStore
-    @Environment(\.openWindow) private var openWindow
+    var openAccounts: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -52,8 +52,7 @@ struct UsageMenuView: View {
                 .disabled(store.isRefreshing)
 
                 Button("Accounts…") {
-                    openWindow(id: "accounts")
-                    NSApp.activate(ignoringOtherApps: true)
+                    openAccounts()
                 }
 
                 Spacer()
